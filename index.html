@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KIWI Setup</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: #313131;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100svh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: #437c2a;
+            height: 56px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 16px;
+            color: white;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .logo { font-size: 22px; font-weight: bold; }
+        .menu-trigger { font-size: 28px; cursor: pointer; padding: 5px 10px; }
+
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: white;
+            min-width: 200px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 100;
+        }
+
+        .dropdown div {
+            display: block;
+            padding: 14px 16px;
+            color: #333;
+            font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+        }
+
+        .dropdown div:hover { background-color: #f9f9f9; }
+
+        main { flex: 1; background-color: #313131; }
+
+        footer {
+            background-color: #4a4a4a;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            flex-shrink: 0;
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        }
+
+        #versionSelect {
+            width: 100%;
+            max-width: 400px;
+            height: 50px;
+            padding: 0 10px;
+            font-size: 16px;
+            border: none;
+            background: white;
+            outline: none;
+        }
+
+        .btn-download {
+            width: 100%;
+            max-width: 400px;
+            height: 60px;
+            background-color: #31621d;
+            color: white;
+            border: none;
+            font-size: 22px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #csvInput { display: none; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo">KIWI</div>
+        <div class="menu-trigger" onclick="toggleMenu()">⋮</div>
+        
+        <div class="dropdown" id="dropdownMenu">
+            <div id="btnCsv" onclick="handleCsvToggle()">Fonte (.csv)</div>
+            <div id="btnLang" onclick="toggleLanguage()">English (🇺🇲)</div>
+            <div id="btnAbout" onclick="showAbout()">Sobre (?)</div>
+        </div>
+    </header>
+
+    <input type="file" id="csvInput" accept=".csv">
+
+    <main onclick="closeMenu()"></main>
+
+    <footer>
+        <select id="versionSelect">
+            <option value="" id="optLoading" disabled selected hidden>Carregando versões...</option>
+        </select>
+
+        <button class="btn-download" id="btnDownload" onclick="iniciarDownload()">
+            Baixar
+        </button>
+    </footer>
+
+    <script>
+        const apiURL = "https://sheetdb.io/api/v1/602ulcuahyide";
+        const select = document.getElementById('versionSelect');
+        const dropdown = document.getElementById('dropdownMenu');
+        const csvInput = document.getElementById('csvInput');
+        const btnDownload = document.getElementById('btnDownload');
+        
+        let currentLang = 'pt';
+        let isCustomCsv = false;
+
+        const texts = {
+            pt: {
+                csv: "Fonte (.csv)",
+                default: "Padrão (URL)",
+                lang: "English (🇺🇲)",
+                about: "Sobre (?)",
+                select: "Selecionar Versão...",
+                download: "Baixar",
+                confirmMsg: "Deseja realmente mudar a fonte para este arquivo CSV?",
+                aboutMsg: "𝐊𝐈𝐖𝐈🥝\n\nO KIWI🥝 é um aplicativo android que funciona como setup para o jogo 𝘚𝘶𝘳𝘷𝘪𝘷𝘢𝘭𝘤𝘳𝘢𝘧𝘵 𝟤, mas atenção, o app não pirateia o jogo, apenas facilita o download indexando os links dos arquivos da web.\n\n𝗩𝗲𝗿: 1.0\n𝗕𝘆: Antônio Tavares",
+                csvErrorTitle: "⚠️ Erro no Arquivo CSV!",
+                csvInstructions: "O arquivo deve seguir estas regras:\n\n1. Cabeçalhos: version, download\n2. Coluna 'version': apenas números e pontos\n3. Coluna 'download': link começando com http\n4. Use vírgula (,) para separar."
+            },
+            en: {
+                csv: "Source (.csv)",
+                default: "Default (URL)",
+                lang: "Português (🇧🇷)",
+                about: "About (?)",
+                select: "Select Version...",
+                download: "Download",
+                confirmMsg: "Do you really want to change the source to this CSV file?",
+                aboutMsg: "𝐊𝐈𝐖𝐈🥝\n\nKIWI🥝 is an Android app that works as a setup for the game 𝘚𝘶𝘳𝘷𝘪𝘷𝘢𝘭𝘤𝘳𝘢𝘧𝘵 𝟤, but please note, the app does not pirate the game, it only facilitates the download by indexing links to files on the web.\n\n𝗩𝗲𝗿: 1.0\n𝗕𝘆: Antônio Tavares",
+                csvErrorTitle: "⚠️ CSV File Error!",
+                csvInstructions: "The file must follow these rules:\n\n1. Headers: version, download\n2. 'version' column: numbers and dots only\n3. 'download' column: link starting with http\n4. Use comma (,) to separate columns."
+            }
+        };
+
+        function toggleMenu() {
+            dropdown.style.display = (dropdown.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function closeMenu() { dropdown.style.display = 'none'; }
+
+        function showAbout() {
+            alert(texts[currentLang].aboutMsg);
+            closeMenu();
+        }
+
+        function toggleLanguage() {
+            currentLang = (currentLang === 'pt') ? 'en' : 'pt';
+            updateUI();
+            closeMenu();
+        }
+
+        function updateUI() {
+            document.getElementById('btnLang').textContent = texts[currentLang].lang;
+            document.getElementById('btnAbout').textContent = texts[currentLang].about;
+            btnDownload.textContent = texts[currentLang].download;
+            document.getElementById('btnCsv').textContent = isCustomCsv ? texts[currentLang].default : texts[currentLang].csv;
+            
+            if(select.options.length > 0 && select.options[0].disabled) {
+                select.options[0].textContent = texts[currentLang].select;
+            }
+        }
+
+        function handleCsvToggle() {
+            if (isCustomCsv) {
+                isCustomCsv = false;
+                fetchVersions();
+            } else {
+                csvInput.click();
+            }
+            closeMenu();
+        }
+
+        csvInput.onchange = e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (confirm(texts[currentLang].confirmMsg)) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    processCSV(event.target.result);
+                };
+                reader.readAsText(file);
+            }
+            csvInput.value = ""; 
+        };
+
+        function processCSV(text) {
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) { showCsvError(); return; }
+            const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+            const versionIdx = headers.indexOf('version');
+            const downloadIdx = headers.indexOf('download');
+            if (versionIdx === -1 || downloadIdx === -1) { showCsvError(); return; }
+            const results = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',').map(c => c.trim());
+                if (cols.length < 2) continue;
+                const ver = cols[versionIdx];
+                const url = cols[downloadIdx];
+                if (/^[0-9.]+$/.test(ver) && url.startsWith('http')) {
+                    results.push({ version: ver, download: url });
+                }
+            }
+            if (results.length > 0) {
+                renderVersions(results);
+                isCustomCsv = true;
+                updateUI();
+            } else {
+                showCsvError();
+            }
+        }
+
+        function showCsvError() {
+            alert(texts[currentLang].csvErrorTitle + "\n\n" + texts[currentLang].csvInstructions);
+        }
+
+        async function fetchVersions() {
+            try {
+                const response = await fetch(apiURL);
+                const data = await response.json();
+                renderVersions(data);
+                updateUI();
+            } catch (e) {
+                select.innerHTML = `<option>Error loading API</option>`;
+            }
+        }
+
+        function renderVersions(data) {
+            // Adicionado 'hidden' para não aparecer na lista suspensa
+            select.innerHTML = `<option value="" disabled selected hidden>${texts[currentLang].select}</option>`;
+            data.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.download;
+                opt.textContent = item.version;
+                select.appendChild(opt);
+            });
+        }
+
+        function iniciarDownload() {
+            const url = select.value;
+            if (!url) {
+                alert(currentLang === 'pt' ? "Escolha uma versão!" : "Choose a version!");
+                return;
+            }
+            window.location.href = url;
+        }
+
+        fetchVersions();
+
+	if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+    </script>
+</body>
+</html>
